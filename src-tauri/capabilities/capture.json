@@ -1,0 +1,11 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "capture",
+  "description": "the screen-capture editor window: calls capture_frame / capture_ready / capture_done / capture_cancel",
+  "windows": [
+    "capture"
+  ],
+  "permissions": [
+    "core:default"
+  ]
+}

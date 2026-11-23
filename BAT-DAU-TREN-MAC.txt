@@ -1,0 +1,49 @@
+VIBE CODE SỰ KIỆN TRÊN MAC
+
+1. Chép VIBE-CODE-Su-Kien-Mac.zip sang Mac và bấm đúp để giải nén.
+   Giữ nguyên thư mục VIBE-CODE-Mac cùng các file bên trong.
+
+2. Cài ba công cụ sau một lần nếu Mac chưa có. Bản này nhắm macOS 13 trở lên.
+
+   • Công cụ Apple. Mở Terminal từ Spotlight (⌘ + Space, gõ Terminal), dán
+     lệnh sau rồi nhấn Enter. Chọn Install và đợi cài xong.
+
+       xcode-select --install
+
+   • Node.js. Tải bộ cài .pkg macOS bản LTS từ 24.11 trở lên. Chọn ARM64
+     nếu máy dùng chip Apple (M1, M2…), hoặc x64 nếu dùng Intel.
+     https://nodejs.org/en/download
+
+   • Rust. Làm theo hướng dẫn cho macOS và chọn bộ công cụ stable mặc định.
+     https://rustup.rs/
+
+3. Mở cửa sổ Terminal mới. Gõ "bash " (có một dấu cách ở cuối), kéo file
+   TAO-APP-MAC.command từ Finder vào Terminal rồi nhấn Enter. Khi xong,
+   Finder sẽ mở thư mục có bộ cài .dmg. Mở .dmg, kéo VIBE CODE vào
+   Applications rồi mở VIBE CODE từ Applications.
+
+   Nếu tạo được VIBE CODE.app nhưng bước tạo .dmg báo lỗi, bạn có thể mở
+   thư mục src-tauri/target trong gói, rồi vào thư mục kết thúc bằng
+   apple-darwin → release → bundle → macos và kéo VIBE CODE.app vào
+   Applications. Đây là bản ký cục bộ để dùng trên máy của bạn.
+
+4. Để dùng phần chat AI, cài và đăng nhập Claude Code trên Mac nếu chưa có.
+   VIBE CODE sẽ nhận Claude Code sau khi bạn mở lại app.
+   https://code.claude.com/docs/en/setup
+
+   Để dùng Zalo, mở tab Zalo trong VIBE CODE và quét QR trên Mac.
+   Nếu cần gửi ảnh màn hình vào chat, dùng ⌘ + Shift + 4 của macOS,
+   sau đó bấm Đính kèm tệp trong VIBE CODE.
+
+DỰ ÁN VÀ DỮ LIỆU CŨ
+
+ZIP chứa mã nguồn và tài nguyên của app. Dự án cá nhân, danh sách sự kiện
+đã tạo, lịch sử chat và thông tin đăng nhập vẫn ở trên máy Windows.
+Để tiếp tục một dự án, chép riêng thư mục dự án sang Mac rồi chọn mở thư
+mục đó trong VIBE CODE. Đường dẫn dự án Windows cần được chọn lại trên Mac.
+
+Nếu cần mang danh sách sự kiện, chép riêng file events.json từ thư mục
+%APPDATA%\TINJS Studio trên Windows sang ~/Library/Application Support/TINJS Studio
+trên Mac. Mở app một lần để tạo thư mục này, sau đó thoát app trước khi chép.
+Sao lưu events.json trên Mac nếu đã có sự kiện ở đó vì thao tác chép sẽ
+thay danh sách hiện tại bằng danh sách mang sang.

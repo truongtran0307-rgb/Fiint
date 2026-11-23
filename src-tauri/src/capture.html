@@ -1,0 +1,472 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+:root { color-scheme: dark; --accent: #0a84ff; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #000; font-family: 'Segoe UI', Inter, system-ui, sans-serif; user-select: none; }
+canvas.full { position: fixed; inset: 0; width: 100vw; height: 100vh; }
+#ov { cursor: crosshair; }
+#hint { position: fixed; top: 18px; left: 50%; transform: translateX(-50%); padding: 8px 14px; border-radius: 10px;
+  background: rgba(20,22,28,.88); color: #e8edf7; font-size: 13px; border: 1px solid rgba(255,255,255,.1);
+  box-shadow: 0 8px 24px rgba(0,0,0,.4); pointer-events: none; white-space: nowrap; }
+#hint b { color: #fff; font-weight: 600; }
+#hint kbd { font: 11px Consolas, monospace; padding: 1px 5px; border-radius: 4px; background: rgba(255,255,255,.12); margin: 0 2px; }
+#mag { position: fixed; width: 132px; pointer-events: none; display: none; border-radius: 10px; overflow: hidden;
+  background: rgba(20,22,28,.94); border: 1px solid rgba(255,255,255,.18); box-shadow: 0 8px 24px rgba(0,0,0,.5); }
+#mag canvas { display: block; width: 132px; height: 132px; image-rendering: pixelated; }
+#mag div { font: 11px Consolas, monospace; color: #cfd6e4; padding: 4px 7px; display: flex; justify-content: space-between; gap: 6px; }
+#mag i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; border: 1px solid rgba(255,255,255,.4); vertical-align: -1px; margin-right: 4px; }
+#size { position: fixed; padding: 2px 7px; border-radius: 5px; background: rgba(10,132,255,.92); color: #fff; font: 600 11px Consolas, monospace; pointer-events: none; display: none; }
+#bar { position: fixed; display: none; align-items: center; gap: 2px; padding: 5px; border-radius: 11px;
+  background: rgba(24,26,33,.96); border: 1px solid rgba(255,255,255,.1); box-shadow: 0 10px 30px rgba(0,0,0,.5); }
+#bar button { width: 32px; height: 32px; border: 0; border-radius: 7px; background: transparent; color: #cfd6e4; cursor: pointer;
+  display: grid; place-items: center; padding: 0; position: relative; }
+#bar button:hover { background: rgba(255,255,255,.08); color: #fff; }
+#bar button.on { background: rgba(10,132,255,.22); color: #5aa9ff; }
+#bar button svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+#bar .sep { width: 1px; height: 22px; background: rgba(255,255,255,.12); margin: 0 4px; }
+#bar button.send { width: auto; padding: 0 12px 0 9px; gap: 5px; display: flex; background: var(--accent); color: #fff; font: 600 12.5px 'Segoe UI', sans-serif; }
+#bar button.send:hover { background: #2b95ff; }
+#bar button.x:hover { background: rgba(255,59,48,.2); color: #ff6961; }
+#bar button[data-tip]:hover::after { content: attr(data-tip); position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+  white-space: nowrap; padding: 4px 8px; border-radius: 6px; background: #0d0f14; color: #e8edf7; font: 11.5px 'Segoe UI', sans-serif; pointer-events: none; }
+#props { position: fixed; display: none; align-items: center; gap: 6px; padding: 6px 8px; border-radius: 10px;
+  background: rgba(24,26,33,.96); border: 1px solid rgba(255,255,255,.1); box-shadow: 0 10px 30px rgba(0,0,0,.5); }
+#props .sz { width: 26px; height: 26px; border-radius: 6px; display: grid; place-items: center; cursor: pointer; }
+#props .sz:hover { background: rgba(255,255,255,.08); }
+#props .sz span { display: block; border-radius: 50%; background: #cfd6e4; }
+#props .sz.on { background: rgba(10,132,255,.22); }
+#props .sz.on span { background: #5aa9ff; }
+#props .sep { width: 1px; height: 18px; background: rgba(255,255,255,.12); }
+#props .c { width: 18px; height: 18px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; box-shadow: inset 0 0 0 1px rgba(255,255,255,.25); }
+#props .c.on { border-color: #fff; transform: scale(1.12); }
+textarea#txt { position: fixed; display: none; min-width: 40px; padding: 2px 4px; margin: 0; border: 1px dashed rgba(255,255,255,.7); border-radius: 3px;
+  background: rgba(0,0,0,.12); outline: none; resize: none; overflow: hidden; font-weight: 700; font-family: 'Segoe UI', sans-serif; line-height: 1.25; white-space: pre; }
+</style>
+</head>
+<body>
+<canvas id="base" class="full"></canvas>
+<canvas id="ov" class="full"></canvas>
+<div id="hint"><b>Drag</b> to capture a region · <b>Click</b> for the whole screen · <kbd>Esc</kbd> cancel</div>
+<div id="size"></div>
+<div id="mag"><canvas width="132" height="132"></canvas><div><span id="mpos"></span><span id="mcol"></span></div></div>
+<div id="props"></div>
+<div id="bar"></div>
+<textarea id="txt" spellcheck="false"></textarea>
+<script>
+const invoke = (cmd, args, opts) => window.__TAURI_INTERNALS__.invoke(cmd, args, opts)
+const $ = (id) => document.getElementById(id)
+const base = $('base'), ov = $('ov'), bctx = base.getContext('2d'), octx = ov.getContext('2d')
+const bar = $('bar'), props = $('props'), hint = $('hint'), sizeTag = $('size'), mag = $('mag'), txt = $('txt')
+const mctx = mag.querySelector('canvas').getContext('2d')
+
+const COLORS = ['#ff3b30', '#ff9500', '#ffcc00', '#34c759', '#0a84ff', '#af52de', '#ffffff', '#1c1c1e']
+const SIZES = [2, 4, 7]
+const ICON = {
+  move: '<path d="M5 3l13 7.5-5.5 1.6L10 18z"/>',
+  rect: '<rect x="4" y="5" width="16" height="14" rx="1.5"/>',
+  ellipse: '<ellipse cx="12" cy="12" rx="9" ry="7"/>',
+  arrow: '<path d="M5 19L19 5M10 5h9v9"/>',
+  pen: '<path d="M4 20l4.5-1L19 8.5 15.5 5 5 15.5z"/><path d="M13.5 7l3.5 3.5"/>',
+  marker: '<path d="M4 20h7"/><path d="M9 16l-2-2L16 5l4 4-9 9z"/><path d="M7 14l-2 4 3-1"/>',
+  text: '<path d="M5 7V5h14v2M12 5v14M9 19h6"/>',
+  mosaic: '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 12h16M12 4v16" stroke-dasharray="2 2"/><rect x="4" y="4" width="8" height="8" fill="currentColor" stroke="none"/><rect x="12" y="12" width="8" height="8" fill="currentColor" stroke="none"/>',
+  step: '<circle cx="12" cy="12" r="9"/><path d="M10.5 9.5L12.5 8v8"/>',
+  undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 010 10h-3"/>',
+  save: '<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>',
+  copy: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 00-1-1H5a1 1 0 00-1 1v10a1 1 0 001 1h3"/>',
+  close: '<path d="M6 6l12 12M18 6L6 18"/>',
+  check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>'
+}
+const TOOLS = [
+  ['move', 'Move / resize  V'], ['rect', 'Rectangle  R'], ['ellipse', 'Ellipse  E'], ['arrow', 'Arrow  A'], ['pen', 'Pen  P'],
+  ['marker', 'Highlighter  H'], ['text', 'Text  T'], ['mosaic', 'Mosaic (hide info)  B'], ['step', 'Numbered step  N']
+]
+const KEYS = { v: 'move', r: 'rect', e: 'ellipse', a: 'arrow', p: 'pen', h: 'marker', t: 'text', b: 'mosaic', n: 'step' }
+
+let W = 0, H = 0, S = 1
+let sel = null // {x, y, w, h} image px
+let phase = 'select' // select | edit | busy
+let tool = 'move', color = COLORS[0], sizeIdx = 1
+let shapes = [], cur = null, drag = null
+
+const svg = (k) => `<svg viewBox="0 0 24 24">${ICON[k]}</svg>`
+const img = (e) => ({ x: Math.max(0, Math.min(W, e.clientX * S)), y: Math.max(0, Math.min(H, e.clientY * S)) })
+const norm = (a, b) => ({ x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), w: Math.abs(a.x - b.x), h: Math.abs(a.y - b.y) })
+const inside = (p, r, pad = 0) => r && p.x >= r.x - pad && p.y >= r.y - pad && p.x <= r.x + r.w + pad && p.y <= r.y + r.h + pad
+const stroke = () => SIZES[sizeIdx] * S
+const fontPx = () => [16, 22, 30][sizeIdx] * S
+
+/* ---------- drawing ---------- */
+
+function drawShape(c, s) {
+  c.save()
+  c.strokeStyle = c.fillStyle = s.color
+  c.lineWidth = s.width
+  c.lineCap = c.lineJoin = 'round'
+  if (s.type === 'rect' || s.type === 'ellipse') {
+    const r = norm(s.a, s.b)
+    c.beginPath()
+    if (s.type === 'rect') c.roundRect(r.x, r.y, r.w, r.h, s.width)
+    else c.ellipse(r.x + r.w / 2, r.y + r.h / 2, r.w / 2, r.h / 2, 0, 0, Math.PI * 2)
+    c.stroke()
+  } else if (s.type === 'arrow') {
+    const { a, b } = s, ang = Math.atan2(b.y - a.y, b.x - a.x)
+    const len = Math.hypot(b.x - a.x, b.y - a.y), head = Math.min(len * 0.6, Math.max(14 * S, s.width * 4.5))
+    const back = { x: b.x - Math.cos(ang) * head * 0.8, y: b.y - Math.sin(ang) * head * 0.8 }
+    c.beginPath(); c.moveTo(a.x, a.y); c.lineTo(back.x, back.y); c.stroke()
+    c.beginPath(); c.moveTo(b.x, b.y)
+    c.lineTo(b.x - Math.cos(ang - 0.42) * head, b.y - Math.sin(ang - 0.42) * head)
+    c.lineTo(b.x - Math.cos(ang + 0.42) * head, b.y - Math.sin(ang + 0.42) * head)
+    c.closePath(); c.fill()
+  } else if (s.type === 'pen' || s.type === 'marker') {
+    if (s.type === 'marker') { c.globalAlpha = 0.38; c.lineCap = 'square' }
+    c.beginPath()
+    s.pts.forEach((p, i) => (i ? c.lineTo(p.x, p.y) : c.moveTo(p.x, p.y)))
+    if (s.pts.length === 1) c.lineTo(s.pts[0].x + 0.1, s.pts[0].y)
+    c.stroke()
+  } else if (s.type === 'mosaic') {
+    const r = norm(s.a, s.b)
+    if (r.w >= 2 && r.h >= 2) {
+      const block = 11 * S, sw = Math.max(1, Math.ceil(r.w / block)), sh = Math.max(1, Math.ceil(r.h / block))
+      const t = document.createElement('canvas'); t.width = sw; t.height = sh
+      t.getContext('2d').drawImage(base, r.x, r.y, r.w, r.h, 0, 0, sw, sh)
+      c.imageSmoothingEnabled = false
+      c.drawImage(t, 0, 0, sw, sh, r.x, r.y, r.w, r.h)
+    }
+  } else if (s.type === 'step') {
+    const rad = s.size
+    c.shadowColor = 'rgba(0,0,0,.35)'; c.shadowBlur = 6 * S; c.shadowOffsetY = 1 * S
+    c.beginPath(); c.arc(s.a.x, s.a.y, rad, 0, Math.PI * 2); c.fill()
+    c.shadowColor = 'transparent'
+    c.lineWidth = Math.max(1.5, rad * 0.12); c.strokeStyle = '#fff'; c.stroke()
+    c.fillStyle = s.color === '#ffffff' || s.color === '#ffcc00' ? '#1c1c1e' : '#fff'
+    c.font = `700 ${rad * 1.15}px 'Segoe UI', sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle'
+    c.fillText(String(s.n), s.a.x, s.a.y + rad * 0.06)
+  } else if (s.type === 'text') {
+    c.font = `700 ${s.size}px 'Segoe UI', sans-serif`; c.textBaseline = 'top'
+    c.shadowColor = s.color === '#1c1c1e' ? 'rgba(255,255,255,.6)' : 'rgba(0,0,0,.55)'; c.shadowBlur = 3 * S
+    s.text.split('\n').forEach((line, i) => c.fillText(line, s.a.x, s.a.y + i * s.size * 1.25))
+  }
+  c.restore()
+}
+
+function render() {
+  octx.clearRect(0, 0, W, H)
+  octx.fillStyle = 'rgba(0,0,0,.45)'
+  octx.fillRect(0, 0, W, H)
+  if (!sel) return
+  octx.clearRect(sel.x, sel.y, sel.w, sel.h)
+  octx.save()
+  octx.beginPath(); octx.rect(sel.x, sel.y, sel.w, sel.h); octx.clip()
+  for (const s of shapes) drawShape(octx, s)
+  if (cur) drawShape(octx, cur)
+  octx.restore()
+  const lw = 1.5 * S
+  octx.strokeStyle = '#0a84ff'; octx.lineWidth = lw
+  octx.strokeRect(sel.x - lw / 2, sel.y - lw / 2, sel.w + lw, sel.h + lw)
+  if (phase === 'edit' && tool === 'move') {
+    for (const h of handles()) {
+      octx.fillStyle = '#fff'; octx.strokeStyle = '#0a84ff'; octx.lineWidth = 1.5 * S
+      const r = 4.5 * S
+      octx.beginPath(); octx.arc(h.x, h.y, r, 0, Math.PI * 2); octx.fill(); octx.stroke()
+    }
+  }
+  sizeTag.style.display = 'block'
+  sizeTag.textContent = `${Math.round(sel.w)} × ${Math.round(sel.h)}`
+  const ty = sel.y / S - 24
+  sizeTag.style.left = sel.x / S + 'px'
+  sizeTag.style.top = (ty < 4 ? sel.y / S + 6 : ty) + 'px'
+}
+
+function handles() {
+  const { x, y, w, h } = sel
+  return [
+    { k: 'nw', x, y }, { k: 'n', x: x + w / 2, y }, { k: 'ne', x: x + w, y },
+    { k: 'w', x, y: y + h / 2 }, { k: 'e', x: x + w, y: y + h / 2 },
+    { k: 'sw', x, y: y + h }, { k: 's', x: x + w / 2, y: y + h }, { k: 'se', x: x + w, y: y + h }
+  ]
+}
+const handleAt = (p) => handles().find((h) => Math.hypot(h.x - p.x, h.y - p.y) <= 9 * S)
+const CURSOR = { nw: 'nwse-resize', se: 'nwse-resize', ne: 'nesw-resize', sw: 'nesw-resize', n: 'ns-resize', s: 'ns-resize', e: 'ew-resize', w: 'ew-resize' }
+
+/* ---------- magnifier ---------- */
+
+function magnify(e) {
+  const show = phase === 'select' || (drag && (drag.kind === 'new' || drag.kind === 'resize'))
+  mag.style.display = show ? 'block' : 'none'
+  if (!show) return
+  const p = img(e), px = Math.floor(p.x), py = Math.floor(p.y), N = 15, Z = 132 / N
+  mctx.imageSmoothingEnabled = false
+  mctx.fillStyle = '#000'; mctx.fillRect(0, 0, 132, 132)
+  mctx.drawImage(base, px - 7, py - 7, N, N, 0, 0, 132, 132)
+  mctx.strokeStyle = 'rgba(10,132,255,.9)'; mctx.lineWidth = 1
+  mctx.strokeRect(7 * Z + 0.5, 7 * Z + 0.5, Z - 1, Z - 1)
+  mctx.fillStyle = 'rgba(10,132,255,.25)'
+  mctx.fillRect(0, 7 * Z, 7 * Z, Z); mctx.fillRect(8 * Z, 7 * Z, 132 - 8 * Z, Z)
+  mctx.fillRect(7 * Z, 0, Z, 7 * Z); mctx.fillRect(7 * Z, 8 * Z, Z, 132 - 8 * Z)
+  const d = bctx.getImageData(Math.min(W - 1, px), Math.min(H - 1, py), 1, 1).data
+  const hex = '#' + [d[0], d[1], d[2]].map((v) => v.toString(16).padStart(2, '0')).join('').toUpperCase()
+  $('mpos').textContent = `${px}, ${py}`
+  $('mcol').innerHTML = `<i style="background:${hex}"></i>${hex}`
+  let lx = e.clientX + 20, ly = e.clientY + 20
+  if (lx + 140 > innerWidth) lx = e.clientX - 152
+  if (ly + 170 > innerHeight) ly = e.clientY - 182
+  mag.style.left = lx + 'px'; mag.style.top = ly + 'px'
+}
+
+/* ---------- toolbars ---------- */
+
+function buildBar() {
+  bar.innerHTML =
+    TOOLS.map(([k, tip]) => `<button data-tool="${k}" data-tip="${tip}" class="${tool === k ? 'on' : ''}">${svg(k)}</button>`).join('') +
+    `<span class="sep"></span>` +
+    `<button data-act="undo" data-tip="Undo  Ctrl+Z">${svg('undo')}</button>` +
+    `<button data-act="save" data-tip="Save as…  Ctrl+S">${svg('save')}</button>` +
+    `<button data-act="copy" data-tip="Copy  Ctrl+C">${svg('copy')}</button>` +
+    `<button data-act="cancel" class="x" data-tip="Cancel  Esc">${svg('close')}</button>` +
+    `<button data-act="chat" class="send" data-tip="Copy + attach to chat  Enter">${svg('check')}Send</button>`
+  props.innerHTML =
+    SIZES.map((_, i) => `<div class="sz${i === sizeIdx ? ' on' : ''}" data-size="${i}"><span style="width:${5 + i * 4}px;height:${5 + i * 4}px"></span></div>`).join('') +
+    `<span class="sep"></span>` +
+    COLORS.map((c) => `<div class="c${c === color ? ' on' : ''}" data-color="${c}" style="background:${c}"></div>`).join('')
+  props.style.display = tool === 'move' || tool === 'mosaic' ? 'none' : 'flex'
+  placeBars()
+}
+
+function placeBars() {
+  if (!sel || phase !== 'edit') return
+  bar.style.display = 'flex'
+  const bw = bar.offsetWidth, bh = bar.offsetHeight, gap = 8
+  const r = { x: sel.x / S, y: sel.y / S, w: sel.w / S, h: sel.h / S }
+  let left = Math.min(innerWidth - bw - 6, Math.max(6, r.x + r.w - bw))
+  let top = r.y + r.h + gap
+  const ph = props.style.display === 'flex' ? props.offsetHeight + 6 : 0
+  if (top + bh + ph > innerHeight - 6) top = r.y - bh - gap - ph
+  if (top < 6) top = Math.min(innerHeight - bh - ph - 6, r.y + r.h - bh - gap - ph)
+  bar.style.left = left + 'px'; bar.style.top = top + 'px'
+  props.style.left = left + 'px'; props.style.top = top + bh + 6 + 'px'
+}
+
+bar.addEventListener('mousedown', (e) => e.stopPropagation())
+props.addEventListener('mousedown', (e) => e.stopPropagation())
+bar.addEventListener('click', (e) => {
+  const b = e.target.closest('button')
+  if (!b) return
+  if (b.dataset.tool) setTool(b.dataset.tool)
+  else act(b.dataset.act)
+})
+props.addEventListener('click', (e) => {
+  const sz = e.target.closest('[data-size]'), c = e.target.closest('[data-color]')
+  if (sz) sizeIdx = Number(sz.dataset.size)
+  if (c) color = c.dataset.color
+  buildBar()
+})
+
+function setTool(t) {
+  commitText()
+  tool = t
+  ov.style.cursor = t === 'move' ? 'default' : t === 'text' ? 'text' : 'crosshair'
+  buildBar(); render()
+}
+
+/* ---------- text ---------- */
+
+let textAt = null
+function startText(p) {
+  commitText()
+  textAt = { p, color, size: fontPx() }
+  Object.assign(txt.style, {
+    display: 'block', left: p.x / S - 5 + 'px', top: p.y / S - 3 + 'px', color,
+    fontSize: textAt.size / S + 'px', maxWidth: (sel.x + sel.w - p.x) / S + 'px'
+  })
+  txt.value = ''
+  autosize()
+  setTimeout(() => txt.focus())
+}
+function autosize() { txt.style.height = 'auto'; txt.style.width = 'auto'; txt.style.height = txt.scrollHeight + 'px'; txt.style.width = Math.max(40, txt.scrollWidth + 4) + 'px' }
+function commitText() {
+  if (!textAt) return
+  const value = txt.value.replace(/\s+$/, '')
+  if (value) shapes.push({ type: 'text', a: { x: textAt.p.x, y: textAt.p.y }, text: value, color: textAt.color, size: textAt.size })
+  textAt = null
+  txt.style.display = 'none'
+  render()
+}
+txt.addEventListener('input', autosize)
+txt.addEventListener('mousedown', (e) => e.stopPropagation())
+txt.addEventListener('keydown', (e) => {
+  e.stopPropagation()
+  if ((e.key === 'Enter' && !e.shiftKey) || e.key === 'Escape') { e.preventDefault(); commitText() }
+})
+
+/* ---------- mouse ---------- */
+
+ov.addEventListener('contextmenu', (e) => e.preventDefault())
+ov.addEventListener('mousedown', (e) => {
+  if (phase === 'busy') return
+  if (e.button === 2) {
+    // right-click: start over, or leave when nothing is picked yet
+    if (phase === 'edit' && !shapes.length) { sel = null; phase = 'select'; bar.style.display = props.style.display = 'none'; sizeTag.style.display = 'none'; hint.style.display = 'block'; render() }
+    else if (phase === 'select') act('cancel')
+    return
+  }
+  if (e.button !== 0) return
+  const p = img(e)
+  if (phase === 'select') { drag = { kind: 'new', start: p }; hint.style.display = 'none'; return }
+  if (textAt) { commitText(); if (tool === 'text') return }
+  if (tool === 'move') {
+    const h = handleAt(p)
+    if (h) drag = { kind: 'resize', h: h.k, orig: { ...sel } }
+    else if (inside(p, sel)) drag = { kind: 'move', start: p, orig: { ...sel } }
+    else if (!shapes.length) { drag = { kind: 'new', start: p }; bar.style.display = props.style.display = 'none' }
+    return
+  }
+  if (!inside(p, sel, 4 * S)) return
+  if (tool === 'text') return startText(p)
+  if (tool === 'step') {
+    const n = shapes.filter((s) => s.type === 'step').length + 1
+    shapes.push({ type: 'step', a: p, n, color, size: (11 + sizeIdx * 4) * S })
+    return render()
+  }
+  const width = tool === 'marker' ? SIZES[sizeIdx] * 5 * S : stroke()
+  cur = tool === 'pen' || tool === 'marker' ? { type: tool, pts: [p], color, width } : { type: tool, a: p, b: p, color, width }
+  drag = { kind: 'draw' }
+})
+
+window.addEventListener('mousemove', (e) => {
+  magnify(e)
+  if (phase === 'busy') return
+  const p = img(e)
+  if (!drag) {
+    if (phase === 'edit' && tool === 'move') {
+      const h = handleAt(p)
+      ov.style.cursor = h ? CURSOR[h.k] : inside(p, sel) ? 'move' : shapes.length ? 'default' : 'crosshair'
+    }
+    return
+  }
+  if (drag.kind === 'new') {
+    sel = norm(drag.start, p)
+  } else if (drag.kind === 'move') {
+    const o = drag.orig
+    sel = { ...o, x: Math.max(0, Math.min(W - o.w, o.x + p.x - drag.start.x)), y: Math.max(0, Math.min(H - o.h, o.y + p.y - drag.start.y)) }
+    shiftShapes(sel.x - o.x - (drag.dx || 0), sel.y - o.y - (drag.dy || 0))
+    drag.dx = sel.x - o.x; drag.dy = sel.y - o.y
+  } else if (drag.kind === 'resize') {
+    const o = drag.orig
+    let x1 = o.x, y1 = o.y, x2 = o.x + o.w, y2 = o.y + o.h
+    if (drag.h.includes('w')) x1 = p.x
+    if (drag.h.includes('e')) x2 = p.x
+    if (drag.h.includes('n')) y1 = p.y
+    if (drag.h.includes('s')) y2 = p.y
+    sel = norm({ x: x1, y: y1 }, { x: x2, y: y2 })
+  } else if (drag.kind === 'draw' && cur) {
+    if (cur.pts) cur.pts.push(p)
+    else {
+      cur.b = p
+      if (e.shiftKey && (cur.type === 'rect' || cur.type === 'ellipse')) {
+        const d = Math.max(Math.abs(p.x - cur.a.x), Math.abs(p.y - cur.a.y))
+        cur.b = { x: cur.a.x + Math.sign(p.x - cur.a.x) * d, y: cur.a.y + Math.sign(p.y - cur.a.y) * d }
+      }
+    }
+  }
+  render()
+  if (drag.kind !== 'draw') placeBars()
+})
+
+window.addEventListener('mouseup', (e) => {
+  if (!drag || e.button !== 0) return
+  const d = drag
+  drag = null
+  if (d.kind === 'new') {
+    // a click (no drag) takes the whole screen
+    if (!sel || sel.w < 4 * S || sel.h < 4 * S) sel = { x: 0, y: 0, w: W, h: H }
+    phase = 'edit'
+    buildBar()
+  } else if (d.kind === 'draw' && cur) {
+    const tiny = cur.pts ? false : Math.hypot(cur.b.x - cur.a.x, cur.b.y - cur.a.y) < 3 * S
+    if (!tiny) shapes.push(cur)
+    cur = null
+  }
+  if (sel && (sel.w < 2 || sel.h < 2)) sel = { ...sel, w: Math.max(sel.w, 2), h: Math.max(sel.h, 2) }
+  magnify(e)
+  render()
+  placeBars()
+})
+
+ov.addEventListener('dblclick', (e) => {
+  if (phase === 'edit' && tool === 'move' && inside(img(e), sel)) act('chat')
+})
+
+function shiftShapes(dx, dy) {
+  if (!dx && !dy) return
+  const mv = (p) => p && (p.x += dx, p.y += dy)
+  for (const s of shapes) { mv(s.a); mv(s.b); s.pts?.forEach(mv) }
+}
+
+/* ---------- keys + actions ---------- */
+
+window.addEventListener('keydown', (e) => {
+  if (phase === 'busy') return
+  const k = e.key.toLowerCase()
+  if (e.key === 'Escape') return act('cancel')
+  if (phase !== 'edit') return
+  if (e.ctrlKey && k === 'z') return act('undo')
+  if (e.ctrlKey && k === 'c') return act('copy')
+  if (e.ctrlKey && k === 's') { e.preventDefault(); return act('save') }
+  if (e.key === 'Enter') return act('chat')
+  if (!e.ctrlKey && !e.altKey && KEYS[k]) return setTool(KEYS[k])
+  if (tool === 'move' && e.key.startsWith('Arrow')) {
+    e.preventDefault()
+    const step = (e.shiftKey ? 10 : 1)
+    const o = { ...sel }
+    if (e.key === 'ArrowLeft') sel.x = Math.max(0, sel.x - step)
+    if (e.key === 'ArrowRight') sel.x = Math.min(W - sel.w, sel.x + step)
+    if (e.key === 'ArrowUp') sel.y = Math.max(0, sel.y - step)
+    if (e.key === 'ArrowDown') sel.y = Math.min(H - sel.h, sel.y + step)
+    shiftShapes(sel.x - o.x, sel.y - o.y)
+    render(); placeBars()
+  }
+})
+
+async function act(a) {
+  if (phase === 'busy') return
+  if (a === 'cancel') { phase = 'busy'; return invoke('capture_cancel') }
+  if (a === 'undo') { if (textAt) { textAt = null; txt.style.display = 'none' } else shapes.pop(); return render() }
+  if (!sel) return
+  commitText()
+  phase = 'busy'
+  const r = { x: Math.round(sel.x), y: Math.round(sel.y), w: Math.max(1, Math.round(sel.w)), h: Math.max(1, Math.round(sel.h)) }
+  const out = document.createElement('canvas')
+  out.width = r.w; out.height = r.h
+  const c = out.getContext('2d')
+  c.drawImage(base, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h)
+  c.translate(-r.x, -r.y)
+  for (const s of shapes) drawShape(c, s)
+  const blob = await new Promise((res) => out.toBlob(res, 'image/png'))
+  const bytes = new Uint8Array(await blob.arrayBuffer())
+  invoke('capture_done', bytes, { headers: { 'x-action': a } }).catch(() => invoke('capture_cancel'))
+}
+
+/* ---------- start ---------- */
+
+;(async () => {
+  try {
+    const buf = new Uint8Array(await invoke('capture_frame'))
+    const dv = new DataView(buf.buffer, buf.byteOffset)
+    W = dv.getUint32(0, true); H = dv.getUint32(4, true)
+    if (!W || !H) return invoke('capture_cancel')
+    base.width = ov.width = W; base.height = ov.height = H
+    bctx.putImageData(new ImageData(new Uint8ClampedArray(buf.buffer, buf.byteOffset + 8, W * H * 4), W, H), 0, 0)
+    S = W / innerWidth
+    render()
+    requestAnimationFrame(() => invoke('capture_ready'))
+  } catch (e) {
+    invoke('capture_cancel')
+  }
+})()
+addEventListener('resize', () => { S = W / innerWidth; render(); placeBars() })
+</script>
+</body>
+</html>

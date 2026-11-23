@@ -1,0 +1,72 @@
+[package]
+name = "vibe-code"
+version = "0.2.8"
+description = "A desktop workspace for Claude Code: multi-chat, editor, diffs, terminal."
+authors = ["TINJS"]
+license = ""
+repository = ""
+edition = "2024"
+rust-version = "1.90"
+
+[lib]
+name = "vibe_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.7.6", features = [] }
+
+[dependencies]
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+tauri = { version = "2.12.7", features = ["tray-icon", "unstable", "image-png", "image-ico", "devtools"] }
+tauri-plugin-global-shortcut = "2.4.1"
+tauri-plugin-dialog = "2.8.4"
+tauri-plugin-single-instance = "2.5.5"
+tauri-plugin-autostart = "2.7.0"
+tauri-plugin-opener = "2.7.3"
+tokio = { version = "1.54.1", features = ["full"] }
+portable-pty = "0.9.0"
+notify = "8.2.2"
+notify-debouncer-full = "0.7.0"
+rusqlite = { version = "0.43.0", features = ["bundled"] }
+base64 = "0.23.1"
+rand = "0.10.4"
+aes-gcm = "0.11.1"
+anyhow = "1.0.104"
+thiserror = "2.0.21"
+dirs = "7.0.0"
+uuid = { version = "1.29.3", features = ["v4"] }
+regex = "1.13.2"
+parking_lot = "0.12.5"
+which = "8.0.6"
+reqwest = { version = "0.13.5", default-features = false, features = ["rustls", "json", "cookies", "stream"] }
+axum = "0.8.9"
+futures-util = "0.3.34"
+tokio-tungstenite = { version = "0.30.0", features = ["rustls-tls-webpki-roots"] }
+md-5 = "0.11.0"
+flate2 = "1.1.11"
+chrono = "0.4.45"
+indexmap = { version = "2.14.2", features = ["serde"] }
+png = "0.18"
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62.2", features = ["Win32_Foundation", "Win32_Security_Cryptography", "Win32_System_Memory", "Win32_System_DataExchange", "Win32_System_Ole", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging", "Win32_Graphics_Gdi", "Win32_System_Com", "Win32_System_SystemInformation"] }
+webview2-com = "0.39.1"
+
+[profile.dev]
+# dependencies optimised even in dev: terminals and JSON stay fast while iterating
+[profile.dev.package."*"]
+opt-level = 2
+
+[profile.release]
+# fast builds over a fast/small exe: no LTO, parallel codegen, incremental rebuilds
+codegen-units = 256
+lto = false
+opt-level = 0
+incremental = true
+panic = "abort"
+strip = true
+
+# like dev: keep dependencies optimised (they're compiled once and cached), so terminals and JSON stay fast
+[profile.release.package."*"]
+opt-level = 2
