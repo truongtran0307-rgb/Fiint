@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Check, ChevronDown, Circle, CircleCheck, CircleDot, ClipboardList, Ellipsis, Folder, FolderOpen, Loader2, MessageSquarePlus, RefreshCw, Search, Sparkles, Trash2, Users } from 'lucide-react'
-import type { ZaloIncoming, ZaloTask, ZaloTasksState } from '../../../../shared/types'
+import { Check, ChevronDown, Circle, CircleCheck, CircleDot, ClipboardList, Ellipsis, Folder, FolderOpen, Loader2, MessageSquarePlus, RefreshCw, Search, Smartphone, Sparkles, Trash2, Users, X } from 'lucide-react'
+import type { ZaloIncoming, ZaloPhoneInfo, ZaloTask, ZaloTasksState } from '../../../../shared/types'
 import { listTime } from './util'
 import { Avatar } from './Avatar'
 import { basename, useStore } from '../../store'
@@ -21,6 +21,7 @@ const NEXT: Record<ZaloTask['status'], ZaloTask['status']> = { todo: 'doing', do
 export function ZaloTasks(): React.JSX.Element {
   const [s, setS] = useState<ZaloTasksState>({ tasks: [], running: false, analyzedAt: 0 })
   const [showDone, setShowDone] = useState(false)
+  const [phone, setPhone] = useState(false)
   const [menu, setMenu] = useState<{ t: ZaloTask; x: number; y: number } | null>(null)
   /** a chat being prepared from a task (downloading its photos / files) */
   const [preparing, setPreparing] = useState<string | null>(null)
@@ -93,6 +94,9 @@ export function ZaloTasks(): React.JSX.Element {
             {s.running ? 'Claude đang đọc tin nhắn…' : s.analyzedAt ? `${pending} việc chưa xong · cập nhật ${listTime(s.analyzedAt)}` : 'Chưa phân tích'}
           </div>
         </div>
+        <button className="zl-icon" title="Xem bảng việc trên iPhone" onClick={() => setPhone(true)}>
+          <Smartphone size={16} />
+        </button>
         <button className="zl-icon" title="Claude đọc lại tin nhắn" disabled={s.running} onClick={() => void window.api.zalo.analyzeTasks()}>
           <RefreshCw size={16} className={s.running ? 'zl-spin' : undefined} />
         </button>
@@ -129,6 +133,7 @@ export function ZaloTasks(): React.JSX.Element {
         })}
       </div>
       <div className="zt-foot">Trả lời trên Zalo điện thoại — tin của bạn đồng bộ về và việc tự chuyển trạng thái. Chuột phải vào việc để đổi trạng thái hoặc tạo chat.</div>
+      {phone && <PhonePanel onClose={() => setPhone(false)} />}
       {menu && <TaskMenu {...menu} onClose={() => setMenu(null)} onChat={(cwd) => void startChat(menu.t, cwd)} />}
     </div>
   )
@@ -343,6 +348,90 @@ function TaskMenu({ t, x, y, onClose, onChat }: { t: ZaloTask; x: number; y: num
             </>
           )}
         </div>
+      </div>
+    </>,
+    document.body
+  )
+}
+
+/**
+ * Zalo chỉ đăng nhập được ở một nơi: máy Mac giữ phiên, rồi phát bảng việc qua Wi-Fi.
+ * iPhone quét QR để mở, có thể "Thêm vào MH chính" — link giữ nguyên sau khi mở lại app.
+ */
+function PhonePanel({ onClose }: { onClose: () => void }): React.JSX.Element {
+  const [info, setInfo] = useState<ZaloPhoneInfo | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
+  useEffect(() => {
+    void window.api.zalo.phoneInfo().then(setInfo)
+    const k = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', k)
+    return () => window.removeEventListener('keydown', k)
+  }, [onClose])
+  const run = async (fn: () => Promise<ZaloPhoneInfo>): Promise<void> => {
+    setBusy(true)
+    setError(null)
+    try {
+      setInfo(await fn())
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+  const url = info?.url
+  return createPortal(
+    <>
+      <div className="zl-scrim zp-scrim" onMouseDown={onClose} />
+      <div className="zp-panel" role="dialog" aria-label="Bảng việc trên iPhone">
+        <div className="zp-head">
+          <Smartphone size={18} className="zt-head-icon" />
+          <div className="zp-title">Bảng việc trên iPhone</div>
+          <button className="zl-icon" title="Đóng" onClick={onClose}>
+            <X size={16} />
+          </button>
+        </div>
+        <p className="zp-text">Zalo vẫn chỉ đăng nhập trên máy này. Máy Mac phát bảng “Việc của tôi” qua Wi-Fi để iPhone xem và đổi trạng thái việc.</p>
+        {url ? (
+          <>
+            {info?.qr && <div className="zp-qr" dangerouslySetInnerHTML={{ __html: info.qr }} />}
+            <div className="zp-url">{url}</div>
+            <div className="zp-acts">
+              <button
+                className="zp-btn"
+                onClick={() => {
+                  void navigator.clipboard.writeText(url).then(() => {
+                    setCopied(true)
+                    setTimeout(() => setCopied(false), 1500)
+                  })
+                }}
+              >
+                {copied ? 'Đã chép' : 'Chép link'}
+              </button>
+              <button className="zp-btn" disabled={busy} onClick={() => void run(window.api.zalo.phoneNewLink)} title="Link cũ trên iPhone sẽ thôi hoạt động">
+                Đổi link
+              </button>
+              <button className="zp-btn danger" disabled={busy} onClick={() => void run(window.api.zalo.phoneStop)}>
+                Tắt
+              </button>
+            </div>
+            <ol className="zp-steps">
+              <li>iPhone dùng cùng Wi-Fi với máy Mac. Mở Camera, quét mã QR.</li>
+              <li>Trong Safari, bấm Chia sẻ → Thêm vào MH chính để mở như một app.</li>
+              <li>Giữ VIBE CODE mở và Mac không ngủ. Nếu macOS hỏi cho phép kết nối đến, chọn Cho phép.</li>
+            </ol>
+          </>
+        ) : (
+          <div className="zp-acts">
+            <button className="zp-btn primary" disabled={busy} onClick={() => void run(window.api.zalo.phoneStart)}>
+              {busy ? <Loader2 size={14} className="zl-spin" /> : <Smartphone size={14} />} Bật bảng cho iPhone
+            </button>
+          </div>
+        )}
+        {(error || (!url && info?.error)) && <div className="zt-error zp-err">{error || info?.error}</div>}
       </div>
     </>,
     document.body

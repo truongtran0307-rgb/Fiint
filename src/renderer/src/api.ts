@@ -35,7 +35,8 @@ import type {
   WindowState,
   ZaloState,
   ZaloTask,
-  ZaloTasksState
+  ZaloTasksState,
+  ZaloPhoneInfo
 } from '../../shared/types'
 
 type Off = () => void
@@ -177,6 +178,11 @@ export const api = {
     removeTask: (id: string): Promise<ZaloTasksState> => invoke('zalo_task_remove', { id }),
     onTasks: (cb: (s: ZaloTasksState) => void): Off => on('zalo:tasks', cb),
     tasksViewing: (viewing: boolean): void => void invoke('zalo_tasks_viewing', { viewing }),
+    /** bảng việc cho iPhone qua Wi-Fi: Mac giữ phiên Zalo, iPhone mở link */
+    phoneInfo: (): Promise<ZaloPhoneInfo> => invoke('zalo_phone_info'),
+    phoneStart: (): Promise<ZaloPhoneInfo> => invoke('zalo_phone_start'),
+    phoneStop: (): Promise<ZaloPhoneInfo> => invoke('zalo_phone_stop'),
+    phoneNewLink: (): Promise<ZaloPhoneInfo> => invoke('zalo_phone_new_link'),
     onShowTasks: (cb: () => void): Off => on('zalo:showTasks', cb),
     onState: (cb: (s: ZaloState) => void): Off => on('zalo:state', cb),
     /** names / avatars changed (the task list shows them) */

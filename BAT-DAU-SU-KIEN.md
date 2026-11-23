@@ -36,3 +36,17 @@ npm.cmd run build -- --bundles nsis
 ```
 
 File cài đặt khi build thành công nằm trong `src-tauri/target/release/bundle/nsis`.
+
+## Bảng việc Zalo trên iPhone
+
+Zalo chỉ đăng nhập được ở một nơi, nên máy Mac giữ phiên Zalo và phát bảng **Việc của tôi** qua Wi-Fi cho iPhone.
+
+1. Mở tab **Zalo**, ở khung **Việc của tôi** bấm biểu tượng điện thoại, rồi bấm **Bật bảng cho iPhone**.
+2. iPhone dùng cùng Wi-Fi với Mac. Mở Camera và quét mã QR.
+3. Trong Safari, bấm **Chia sẻ → Thêm vào MH chính** để mở như một app. Link giữ nguyên sau khi mở lại VIBE CODE, và bảng tự bật lại nếu lần trước đang bật.
+4. Trên iPhone: chạm vòng tròn để chuyển Cần làm → Đang làm → Xong, hoặc bấm ↻ để Claude đọc lại tin nhắn. Bảng tự cập nhật mỗi 5 giây.
+
+Lưu ý:
+- Giữ VIBE CODE mở và Mac không ngủ. Lần đầu macOS có thể hỏi cho phép kết nối đến; chọn **Cho phép**.
+- Ai có link và ở cùng Wi-Fi đều xem được việc. Nếu lỡ gửi link cho người khác, bấm **Đổi link**; link cũ thôi hoạt động.
+- Chỉ dùng được trong cùng mạng Wi-Fi. Trả lời tin nhắn vẫn làm trên app Zalo của điện thoại như trước.

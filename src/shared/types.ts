@@ -321,3 +321,11 @@ export interface ChatMessage {
   at: number
 }
 
+
+/** Bảng việc cho iPhone: link Wi-Fi do máy Mac phát (Mac giữ phiên Zalo duy nhất). */
+export interface ZaloPhoneInfo {
+  url?: string | null
+  /** mã QR của link, dạng SVG */
+  qr?: string | null
+  error?: string | null
+}

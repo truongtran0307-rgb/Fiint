@@ -19,6 +19,7 @@ mod toast;
 mod webdata;
 mod windowing;
 mod zalo;
+mod zalo_phone;
 mod zalo_tasks;
 
 use tauri::Manager;
@@ -109,6 +110,10 @@ pub fn run() {
             zalo_tasks::zalo_task_context,
             zalo_tasks::zalo_task_remove,
             zalo_tasks::zalo_tasks_viewing,
+            zalo_phone::zalo_phone_info,
+            zalo_phone::zalo_phone_start,
+            zalo_phone::zalo_phone_stop,
+            zalo_phone::zalo_phone_new_link,
             toast::toast_click,
             toast::toast_close,
             // window
@@ -167,6 +172,7 @@ pub fn run() {
             windowing::init(app)?;
             zalo::init();
             zalo_tasks::init();
+            zalo_phone::init();
             Ok(())
         })
         .on_window_event(|window, event| {

@@ -403,3 +403,20 @@
 @keyframes zl-dot { 0%, 80%, 100% { transform: translateY(0); opacity: 0.4; } 40% { transform: translateY(-3px); opacity: 1; } }
 @keyframes zt-indet { from { transform: translateX(-100%); } to { transform: translateX(300%); } }
 @keyframes zt-flash { from { background: color-mix(in srgb, var(--accent, #3b82f6) 22%, transparent); } to { background: transparent; } }
+
+/* bảng việc trên iPhone */
+.zp-scrim { background: rgb(0 0 0 / 0.35); }
+.zp-panel { position: fixed; z-index: 41; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(380px, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow-y: auto; padding: 14px 16px 16px; border-radius: 14px; border: 1px solid var(--border); background: var(--bg-1); color: inherit; box-shadow: 0 18px 50px rgb(0 0 0 / 0.35); animation: zl-menu-in 0.14s ease-out; }
+.zp-head { display: flex; align-items: center; gap: 10px; }
+.zp-title { flex: 1; font-size: 15px; font-weight: 700; }
+.zp-text { font-size: 12.5px; color: var(--zl-meta); margin: 8px 0 12px; line-height: 1.45; }
+.zp-qr { width: 200px; height: 200px; margin: 0 auto; border-radius: 10px; overflow: hidden; background: #fff; }
+.zp-qr svg { display: block; width: 100%; height: 100%; }
+.zp-url { margin: 10px 0; font: 12px/1.4 'JetBrains Mono', monospace; text-align: center; word-break: break-all; user-select: text; color: var(--zl-meta); }
+.zp-acts { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+.zp-btn { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 14px; border-radius: 8px; border: 1px solid var(--border); background: transparent; color: inherit; font: inherit; font-size: 13px; cursor: pointer; }
+.zp-btn:disabled { opacity: 0.5; cursor: default; }
+.zp-btn.primary { background: var(--zl-accent); border-color: transparent; color: #fff; font-weight: 600; }
+.zp-btn.danger { color: var(--zl-red); }
+.zp-steps { margin: 14px 0 0; padding-left: 18px; font-size: 12.5px; color: var(--zl-meta); line-height: 1.5; }
+.zp-err { margin: 12px 0 0; }

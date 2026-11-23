@@ -252,7 +252,7 @@ pub async fn event_register(id: String, registration: Registration) -> Res<Event
     Ok(register(&id, registration).await?)
 }
 
-fn local_ip() -> Result<Ipv4Addr> {
+pub(crate) fn local_ip() -> Result<Ipv4Addr> {
     let socket = UdpSocket::bind((Ipv4Addr::UNSPECIFIED, 0))?;
     // Select the outgoing interface without sending a datagram.
     socket.connect((Ipv4Addr::new(192, 0, 2, 1), 80))?;

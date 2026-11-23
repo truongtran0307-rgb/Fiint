@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Việc Zalo">
+<meta name="theme-color" content="#f4f6f9" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f1620" media="(prefers-color-scheme: dark)">
+<title>Việc Zalo</title>
+<style>
+:root{--bg:#f4f6f9;--card:#fff;--text:#16202c;--meta:#66768a;--line:#e3e8ef;--accent:#0068ff;--red:#e5484d;--amber:#d9922e;--green:#2f9e63;--chip:#eaf0f7}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1620;--card:#18222e;--text:#eaf1f9;--meta:#8c9bb0;--line:#263443;--accent:#4c9bff;--chip:#223040}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--text);font:16px/1.4 -apple-system,BlinkMacSystemFont,system-ui,sans-serif}
+header{position:sticky;top:0;z-index:2;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);padding:calc(env(safe-area-inset-top) + 12px) 16px 10px;border-bottom:1px solid var(--line)}
+.top{display:flex;align-items:center;gap:10px}
+h1{margin:0;font-size:22px;flex:1}
+#sub{font-size:13px;color:var(--meta);margin-top:2px}
+.btn{border:0;background:var(--chip);color:var(--text);border-radius:999px;min-width:44px;height:44px;padding:0 14px;font:inherit;font-size:15px;font-weight:600}
+.btn:disabled{opacity:.5}
+.tabs{display:flex;gap:6px;margin-top:10px}
+.tab{flex:1;border:0;border-radius:10px;height:38px;background:var(--chip);color:var(--meta);font:inherit;font-size:14px;font-weight:600}
+.tab.on{background:var(--accent);color:#fff}
+main{padding:10px 12px calc(env(safe-area-inset-bottom) + 24px);max-width:640px;margin:0 auto}
+.banner{margin:4px 0 10px;padding:10px 12px;border-radius:12px;font-size:14px}
+.banner.err{background:color-mix(in srgb,var(--red) 14%,transparent);color:var(--red)}
+.banner.info{background:var(--chip);color:var(--meta)}
+.row{display:flex;gap:12px;align-items:flex-start;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:8px}
+.check{flex:0 0 auto;width:30px;height:30px;border-radius:50%;border:2px solid var(--red);background:transparent;display:grid;place-items:center;color:#fff;font-size:16px;font-weight:700;margin-top:2px}
+.doing .check{border-color:var(--amber);background:color-mix(in srgb,var(--amber) 22%,transparent);color:var(--amber)}
+.done .check{border-color:var(--green);background:var(--green)}
+.av{flex:0 0 auto;width:36px;height:36px;border-radius:50%;object-fit:cover;background:var(--chip);display:grid;place-items:center;font-weight:700;color:var(--meta);font-size:14px}
+.main{flex:1;min-width:0}
+.title{font-weight:600;overflow-wrap:anywhere}
+.done .title{color:var(--meta);text-decoration:line-through}
+.detail{font-size:14px;color:var(--meta);margin-top:2px;overflow-wrap:anywhere}
+.meta{font-size:12.5px;color:var(--meta);margin-top:4px;overflow-wrap:anywhere}
+.acts{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.act{border:1px solid var(--line);background:transparent;color:var(--text);border-radius:999px;height:34px;padding:0 12px;font:inherit;font-size:13px}
+.empty{text-align:center;color:var(--meta);padding:40px 16px;font-size:15px}
+</style>
+</head>
+<body>
+<header>
+  <div class="top">
+    <div style="flex:1;min-width:0"><h1>Việc của tôi</h1><div id="sub">Đang tải…</div></div>
+    <button class="btn" id="refresh" aria-label="Nhờ Claude đọc lại tin nhắn">↻</button>
+  </div>
+  <div class="tabs" role="tablist">
+    <button class="tab on" data-k="todo">Cần làm <span id="n-todo"></span></button>
+    <button class="tab" data-k="doing">Đang làm <span id="n-doing"></span></button>
+    <button class="tab" data-k="done">Xong <span id="n-done"></span></button>
+  </div>
+</header>
+<main>
+  <div id="banner"></div>
+  <div id="list"></div>
+</main>
+<script>
+(() => {
+  const base = location.pathname.replace(/\/+$/, '');
+  const LABEL = { todo: 'Cần làm', doing: 'Đang làm', done: 'Xong' };
+  const $ = (id) => document.getElementById(id);
+  let state = null, tab = 'todo', offline = false, seq = 0;
+
+  const ago = (ts) => {
+    if (!ts) return '';
+    const d = new Date(ts), now = new Date();
+    const hm = d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+    if (d.toDateString() === now.toDateString()) return hm;
+    return d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' }) + ' ' + hm;
+  };
+  const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+
+  function render() {
+    const s = state;
+    const banner = $('banner'); banner.replaceChildren();
+    if (offline) banner.append(el('div', 'banner err', 'Không kết nối được máy Mac. Kiểm tra Mac đang mở VIBE CODE, không ngủ, và iPhone cùng Wi-Fi.'));
+    if (!s) return;
+    if (s.error) banner.append(el('div', 'banner err', s.error));
+    if (s.running) banner.append(el('div', 'banner info', 'Claude đang đọc tin nhắn trên Mac…'));
+    else if (s.incoming && s.incoming.length) banner.append(el('div', 'banner info', `Đang gom ${s.incoming.length} tin nhắn mới để tạo việc…`));
+    const by = { todo: [], doing: [], done: [] };
+    for (const t of s.tasks) (by[t.status] || by.todo).push(t);
+    for (const k of ['todo', 'doing', 'done']) $('n-' + k).textContent = by[k].length ? `(${by[k].length})` : '';
+    const pending = by.todo.length + by.doing.length;
+    $('sub').textContent = s.running ? 'Claude đang đọc tin nhắn…' : `${pending} việc chưa xong` + (s.analyzedAt ? ` · cập nhật ${ago(s.analyzedAt)}` : '');
+    $('refresh').disabled = s.running;
+    document.querySelectorAll('.tab').forEach((b) => b.classList.toggle('on', b.dataset.k === tab));
+    const list = $('list'); list.replaceChildren();
+    const items = by[tab].sort((a, b) => b.ts - a.ts);
+    if (!items.length) { list.append(el('div', 'empty', tab === 'done' ? 'Chưa có việc hoàn thành.' : 'Không có việc nào ở đây 🎉')); return; }
+    for (const t of items) {
+      const row = el('div', 'row ' + t.status);
+      const check = el('button', 'check', t.status === 'done' ? '✓' : t.status === 'doing' ? '•' : '');
+      check.setAttribute('aria-label', t.status === 'todo' ? 'Chuyển sang đang làm' : t.status === 'doing' ? 'Đánh dấu xong' : 'Mở lại');
+      check.onclick = () => setStatus(t.id, { todo: 'doing', doing: 'done', done: 'todo' }[t.status]);
+      let av;
+      if (t.avatar && /^https:\/\//.test(t.avatar)) { av = el('img', 'av'); av.src = t.avatar; av.alt = ''; av.referrerPolicy = 'no-referrer'; av.onerror = () => av.replaceWith(el('div', 'av', (t.from || '?').trim().charAt(0).toUpperCase())); }
+      else av = el('div', 'av', (t.from || '?').trim().charAt(0).toUpperCase());
+      const main = el('div', 'main');
+      main.append(el('div', 'title', t.title));
+      if (t.detail) main.append(el('div', 'detail', t.detail));
+      main.append(el('div', 'meta', (t.group ? `👥 ${t.threadName} · ${t.from}` : t.from) + ' · ' + ago(t.ts) + (t.manual ? ' · đặt tay' : '')));
+      const acts = el('div', 'acts');
+      for (const k of ['todo', 'doing', 'done']) if (k !== t.status) { const b = el('button', 'act', '→ ' + LABEL[k]); b.onclick = () => setStatus(t.id, k); acts.append(b); }
+      main.append(acts);
+      row.append(check, av, main);
+      list.append(row);
+    }
+  }
+
+  async function load() {
+    const my = ++seq;
+    try {
+      const r = await fetch(base + '/api', { cache: 'no-store' });
+      if (!r.ok) throw new Error(r.status);
+      const s = await r.json();
+      if (my !== seq) return;
+      state = s; offline = false;
+    } catch { if (my === seq) offline = true; }
+    render();
+  }
+
+  async function setStatus(id, status) {
+    seq++;
+    const t = state && state.tasks.find((x) => x.id === id);
+    if (t) { t.status = status; t.manual = true; render(); }
+    try {
+      const r = await fetch(base + '/api/status', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, status }) });
+      if (!r.ok) throw new Error(r.status);
+      state = await r.json(); offline = false;
+    } catch { offline = true; }
+    render();
+  }
+
+  $('refresh').onclick = async () => {
+    try { await fetch(base + '/api/analyze', { method: 'POST' }); } catch {}
+    setTimeout(load, 400);
+  };
+  document.querySelectorAll('.tab').forEach((b) => (b.onclick = () => { tab = b.dataset.k; render(); window.scrollTo(0, 0); }));
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
+  setInterval(() => { if (!document.hidden) load(); }, 5000);
+
+  const icon = document.createElement('link'); icon.rel = 'apple-touch-icon'; icon.href = base + '/icon.png'; document.head.append(icon);
+  load();
+})();
+</script>
+</body>
+</html>
